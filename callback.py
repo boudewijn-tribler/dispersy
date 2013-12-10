@@ -481,7 +481,7 @@ class Callback(object):
         event = Event()
 
         # register the call
-        self.register(call, args, kargs, 0.0, priority, id_, callback, include_id=include_id)
+        id_ = self.register(call, args, kargs, 0.0, priority, id_, callback, include_id=include_id)
 
         if self._thread_ident == get_ident():
             begin = time()
@@ -493,6 +493,7 @@ class Callback(object):
                 # detect timeout
                 difference = time() - begin
                 if timeout > 0.0 and difference > timeout:
+                    self.unregister(id_)
                     logger.warning("timeout %.2fs occurred after %.2fs during call to %s", timeout, difference, call)
                     break
 
@@ -503,6 +504,7 @@ class Callback(object):
                 # starting Python 2.7 event.wait returns False on timeout while older versions
                 # always return None.  Once Dispersy requires Python 2.7 we should use the return
                 # value of event.wait instead of calling event.is_set.
+                self.unregister(id_)
                 logger.warning("timeout %.2fs occurred during call to %s", timeout, call)
 
         if container[1]:
