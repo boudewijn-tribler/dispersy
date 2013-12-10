@@ -650,6 +650,7 @@ CREATE TABLE IF NOT EXISTS ready (peer_number INTEGER PRIMARY KEY)
         high_peer_number = int(self._kargs["highpeernumber"])
 
         # ensure that the table exists
+        logger.info("share_synchronize has started")
         self.log("scenario-share-synchronize", state="init", peer_number=peer_number)
         self._share_execute_local(self._sql_ready)
 
@@ -711,6 +712,25 @@ CREATE TABLE IF NOT EXISTS ready (peer_number INTEGER PRIMARY KEY)
         con_memory, _ = self._share_connect_memory()
         con_memory.executescript("".join(line for line in con_local.iterdump()))
         self.log("scenario-share-synchronize", state="done")
+        logger.info("share_synchronize has finished")
+
+    def get_peer_from_public_key(self, public_key):
+        # dependencies
+        if not (0 < self._scenario_calls["scenario_start"]):
+            raise RuntimeError("get_peer_from_public_key must be called AFTER scenario_start")
+        if not (0 < self._scenario_calls["scenario_share_synchronize"]):
+            raise RuntimeError("get_peer_from_public_key must be called AFTER scenario_share_synchronize")
+
+        tuples = self._share_execute_memory(u"SELECT * FROM identities WHERE public_key = ? LIMIT 1", (buffer(public_key),))
+        if tuples:
+            peer_number, hostname, lan_host, lan_port, wan_host, wan_port, public_key, private_key = tuples[0]
+            return self._share_identity_cls(peer_number, hostname, (str(lan_host), lan_port), (str(wan_host), wan_port), str(public_key), str(private_key))
+        else:
+            #print "get_peer_from_candidate", candidate.lan_address, tuples
+            #for tup for self._share_execute_memory(u"SELECT * FROM identities"):
+            #    print tup
+            assert False, "could not find public key"
+            raise RuntimeError("could not find public key")
 
     def get_peer_from_candidate(self, candidate):
         # dependencies
