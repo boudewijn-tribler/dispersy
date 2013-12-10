@@ -31,8 +31,13 @@ class DispersyTestFunc(TestCase):
         logger.exception("%s (fatal: %s, strict: %s)", exception, is_fatal, self.enable_strict)
 
         if self.enable_strict and self._dispersy:
-            self._dispersy.stop()
+            # 09/12/13 Boudewijn: we must first set self._dispersy to None, then call
+            # dispersy.stop() because dispersy.stop() will use callback.call to wait for all
+            # existing tasks to finish, hence, when one of these tasks causes an error resulting in
+            # another call to on_callback_exception, it should not call dispersy.stop again.
+            dispersy = self._dispersy
             self._dispersy = None
+            self._dispersy_stop_result = dispersy.stop()
 
         # consider every exception a fatal error when 'strict' is enabled
         return self.enable_strict
@@ -46,11 +51,22 @@ class DispersyTestFunc(TestCase):
         assert isinstance(enable_strict, bool), type(enable_strict)
         self._enable_strict = enable_strict
 
+    def assert_dispersy_start(self):
+        " Test that Dispersy properly started. "
+        self.assertTrue(self._dispersy_start_result, "Dispersy did not properly start")
+
+    def assert_dispersy_stop(self):
+        " Test that Dispersy properly stopped. "
+        self.assertTrue(self._dispersy_stop_result, "Dispersy did not properly stop")
+
     def setUp(self):
         super(DispersyTestFunc, self).setUp()
         logger.debug("setUp")
 
         self._enable_strict = True
+        self._dispersy_start_result = False
+        self._dispersy_stop_result = False
+
         callback = Callback("Dispersy-Unit-Test")
         callback.attach_exception_handler(self.on_callback_exception)
         endpoint = StandaloneEndpoint(12345)
@@ -58,7 +74,8 @@ class DispersyTestFunc(TestCase):
         database_filename = u":memory:"
 
         self._dispersy = Dispersy(callback, endpoint, working_directory, database_filename)
-        self._dispersy.start()
+        self._dispersy_start_result = self._dispersy.start()
+        self.assert_dispersy_start()
         self._my_member = callback.call(self._dispersy.get_new_member, (u"low",))
 
     def tearDown(self):
@@ -66,6 +83,8 @@ class DispersyTestFunc(TestCase):
         logger.debug("tearDown")
 
         if self._dispersy:
-            self.assertTrue(self._dispersy.stop())
+            self._dispersy_stop_result = self._dispersy.stop()
             self._dispersy = None
         self._my_member = None
+
+        self.assert_dispersy_stop()

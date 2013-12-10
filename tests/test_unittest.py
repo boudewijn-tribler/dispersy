@@ -1,3 +1,5 @@
+from time import sleep
+
 from ..logger import get_logger
 from .dispersytestclass import DispersyTestFunc, call_on_dispersy_thread
 logger = get_logger(__name__)
@@ -22,6 +24,37 @@ def failure_to_success(exception_class, exception_message):
         return helper2
     return helper1
 
+
+class TestImproperDispersyStop(DispersyTestFunc):
+
+    def assert_dispersy_stop(self):
+        " Test that Dispersy did -not- properly stop. "
+        self.assertFalse(self._dispersy_stop_result, "Dispersy should not properly stop")
+
+    @failure_to_success(AssertionError, "This must fail")
+    @call_on_dispersy_thread
+    def test_infinite_loop_at_shutdown(self):
+        " Cause infinite loop during shutdown. "
+        def task(callback):
+            callback.register(task, (callback,))
+            sleep(1.0)
+        self.assertTrue(self.enable_strict)
+        task(self._dispersy.callback)
+
+        # this assert causes Callback to call the exception handlers, resulting in Dispersy.stop().
+        # Dispersy.stop() uses Callback.call(..., priority=-512, timeout=10.0) to wait until
+        # the main components of Dispersy are stopped.
+        #
+        # However, TASK has a higher priority and will continue to run until a timeout occurs in the
+        # aforementioned Callback.call(...).  Once this timeout occurs Dispersy.stop() will return
+        # False, and the unit case tearDown will be called.  Note that Dispersy is still running
+        # until the garbage collector figures out it is no longer used.
+        self.assertTrue(False, "This must fail")
+
+        # yield thread, causes TASK to run
+        yield 1.0
+
+
 class TestUnittest(DispersyTestFunc):
     """
     Tests ensuring that an exception anywhere in _dispersy.callback is propagated to the unittest framework.
@@ -32,7 +65,6 @@ class TestUnittest(DispersyTestFunc):
 
     Non 'strict' tests will result in the Callback ignoring KeyError and AssertionError exceptions.
     """
-
     @failure_to_success(AssertionError, "This must fail")
     @call_on_dispersy_thread
     def test_assert(self):

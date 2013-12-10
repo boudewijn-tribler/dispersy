@@ -4634,15 +4634,21 @@ WHERE sync.community = ? AND meta_message.priority > 32 AND sync.undone = 0 AND 
 
         logger.info("stopping the Dispersy core...")
         results = []
-        self._callback.call(stop, priority= -512)
-
-        if self._callback.is_current_thread:
-            # the result from _callback.stop will always be False since it can not stop a thread
-            # that we are currently on
-            self._callback.stop(timeout)
-        else:
-            results.append((u"callback", self._callback.stop(timeout)))
+        if self._callback.call(stop, priority= -512, timeout=timeout, default="timeout") == "timeout":
+            results.append((u"stop", False))
             assert all(isinstance(result, bool) for _, result in results), [type(result) for _, result in results]
+
+        else:
+            results.append((u"stop", True))
+            assert all(isinstance(result, bool) for _, result in results), [type(result) for _, result in results]
+
+            if self._callback.is_current_thread:
+                # the result from _callback.stop will always be False since it can not stop a thread
+                # that we are currently on
+                self._callback.stop(timeout)
+            else:
+                results.append((u"callback", self._callback.stop(timeout)))
+                assert all(isinstance(result, bool) for _, result in results), [type(result) for _, result in results]
 
         # log and return the result
         if all(result for _, result in results):
