@@ -2553,20 +2553,19 @@ ORDER BY global_time""", (meta.database_id, member_database_id)))
     def _get_packets_for_bloomfilters(self, community, requests, include_inactive=True):
         """
         Return all packets matching a Bloomfilter request
-        
+
         @param community: The community wherein all requests were received
         @type messages: [Community]
 
         @param requests: A list of requests, each of them being a tuple consisting of the request,
-         time_low, time_high, offset, and modulo  
-        @type requests: list 
+         time_low, time_high, offset, and modulo
+        @type requests: list
 
-        @param include_inactive: When False only active packets (due to pruning) are returned 
+        @param include_inactive: When False only active packets (due to pruning) are returned
         @type include_inactive: bool
-        
+
         @return: An generator yielding the original request and a generator consisting of the packets matching the request
         """
-
         assert isinstance(requests, list)
         assert all(isinstance(request, (list, tuple)) for request in requests)
         assert all(len(request) == 5 for request in requests)
@@ -2630,7 +2629,6 @@ ORDER BY global_time""", (meta.database_id, member_database_id)))
                 sql_arguments.extend((meta.database_id, _time_low, time_high, offset, modulo))
             logger.debug("%s", sql_arguments)
 
-            packets = []
             yield message, ((str(packet),) for packet, in self._database.execute(sql, sql_arguments))
 
     def check_introduction_response(self, messages):

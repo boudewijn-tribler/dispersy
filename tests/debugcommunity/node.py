@@ -373,15 +373,15 @@ class DebugNode(object):
             try:
                 packet, address = self._socket.recvfrom(10240)
             except:
-                logger.debug("No more packets on %s", self.wan_address)
+                logger.debug("no more packets on %s", self.wan_address)
                 raise
 
             if not (addresses is None or address in addresses or (address[0] == "127.0.0.1" and ("0.0.0.0", address[1]) in addresses)):
-                logger.debug("Ignored %d bytes from %s:%d", len(packet), address[0], address[1])
+                logger.debug("ignored %d bytes from %s:%d", len(packet), address[0], address[1])
                 continue
 
             if not (packets is None or packet in packets):
-                logger.debug("Ignored %d bytes from %s:%d", len(packet), address[0], address[1])
+                logger.debug("ignored %d bytes from %s:%d", len(packet), address[0], address[1])
                 continue
 
             if packet.startswith("ffffffff".decode("HEX")):
@@ -412,7 +412,7 @@ class DebugNode(object):
                 packets_.append(self.receive_packet(timeout, addresses, packets))
             except socket.error:
                 break
-        logger.debug("Received %d packets", len(packets))
+        logger.debug("received %d packets", len(packets_))
         return packets_
 
     def receive_message(self, timeout=None, addresses=None, packets=None, message_names=None, payload_types=None, distributions=None, destinations=None, names=None):
@@ -456,11 +456,11 @@ class DebugNode(object):
             try:
                 message = self._community.get_conversion_for_packet(packet).decode_message(candidate, packet)
             except KeyError as exception:
-                logger.exception("Ignored %s", exception)
+                logger.exception("ignored %s", exception)
                 continue
 
             if not (names is None or message.name in names):
-                logger.debug("Ignored %s (%d bytes) from %s", message.name, len(packet), candidate)
+                logger.debug("ignored %s (%d bytes) from %s", message.name, len(packet), candidate)
                 continue
 
             logger.debug("%s (%d bytes) from %s", message.name, len(packet), candidate)
@@ -502,7 +502,7 @@ class DebugNode(object):
 
         if counts and not len(messages) in counts:
             raise AssertionError("Received %d messages while expecting %s messages" % (len(messages), counts))
-        logger.debug("Received %d messages", len(messages))
+        logger.debug("received %d messages", len(messages))
         return messages
 
     def create_dispersy_authorize(self, permission_triplets, sequence_number, global_time):
