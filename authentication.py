@@ -300,7 +300,8 @@ class DoubleMemberAuthentication(Authentication):
             Set a verified signature for a specific member.
 
             This method adds a new signature.  Note that the signature is assumed to be valid at
-            this point.  When the message is encoded the new signature will be included.
+            this point.  When REGENERATE is True, the message is encoded and the new signature will
+            be included.
 
             @param member: The Member that made the signature.
             @type member: Member
@@ -311,12 +312,17 @@ class DoubleMemberAuthentication(Authentication):
             @param sign: Whether signatures should be created when we have the private key
              available.
             @type sign: bool
+
+            @param regenerate: Whether the message should be regenerated, i.e. serialised,
+             immediately.
+            @type regenerate: bool
             """
             # todo: verify the signature
             assert member in self._members
             assert member.signature_length == len(signature)
             assert isinstance(signature, str), type(signature)
             assert isinstance(sign, bool), type(sign)
+            assert isinstance(regenerate, bool), type(regenerate)
             self._signatures[self._members.index(member)] = signature
             if regenerate:
                 self._regenerate_packet_func(sign=sign)

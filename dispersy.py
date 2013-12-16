@@ -95,6 +95,24 @@ class SignatureRequestCache(NumberCache):
         return u"request-cache:signature-request:%d" % (number,)
 
     def __init__(self, request_cache, candidates, members, response_func, response_args, success_func, success_args, timeout):
+        if __debug__:
+            from .requestcache import RequestCache
+            assert isinstance(request_cache, RequestCache), type(request_cache)
+            assert isinstance(candidates, list), type(candidates)
+            assert len(candidates) == 1, len(candidates)
+            assert all(isinstance(candidate, Candidate) for candidate in candidates), [type(candidate) for candidate in candidates]
+            assert isinstance(members, list), type(members)
+            assert len(members) == 1, len(members)
+            assert all(isinstance(member, Member) for member in members), [type(member) for member in members]
+            assert callable(response_func), response_func
+            assert isinstance(response_args, tuple), type(response_args)
+            if success_func is None:
+                assert isinstance(success_args, tuple), type(success_args)
+                assert success_args == (), "SUCCESS_ARGS without SUCCESS_FUNC makes no sense"
+            else:
+                assert callable(success_func), success_func
+                assert isinstance(success_args, tuple), type(success_args)
+            assert isinstance(timeout, float), type(timeout)
         super(SignatureRequestCache, self).__init__(request_cache)
         self.request = None
         # CANDIDATES is a list containing all the candidates that should add their signature.
