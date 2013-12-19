@@ -1,0 +1,242 @@
+%%
+%% This is file `pdstitle.sty',
+%% generated with the docstrip utility.
+%%
+%% The original source files were:
+%%
+%% pdsreport.dtx  (with options: `pdstitle')
+%%
+%%
+%% This is a generated file.
+%%
+%% Copyright 1997-2011 PDS, SCT, EEMCS, TU Delft.
+%%
+%% MODIFICATION ADVICE:
+%%
+%% If you want to customize this file, it is best to make a copy of
+%% the source file(s) from which it was produced.  Use a different
+%% name for your copy(ies) and modify the copy(ies); this will ensure
+%% that your modifications do not get overwritten when you install a
+%% new release of the standard system.  You should also ensure that
+%% your modified source file does not generate any modified file with
+%% the same name as a standard file.
+%%
+%% You can then easily distribute your modifications by distributing
+%% the modified and renamed copy of the source file, taking care to
+%% observe the conditions in legal.txt; this will ensure that other
+%% users can safely use your modifications.
+%%
+%% You will also need to produce your own, suitably named, .ins file to
+%% control the generation of files from your source file; this file
+%% should contain your own preambles for the files it generates, not
+%% those in the standard .ins files.
+%%
+%% The names of the source files used are shown above.
+%%
+%% \CharacterTable
+%%  {Upper-case    \A\B\C\D\E\F\G\H\I\J\K\L\M\N\O\P\Q\R\S\T\U\V\W\X\Y\Z
+%%   Lower-case    \a\b\c\d\e\f\g\h\i\j\k\l\m\n\o\p\q\r\s\t\u\v\w\x\y\z
+%%   Digits        \0\1\2\3\4\5\6\7\8\9
+%%   Exclamation   \!     Double quote  \"     Hash (number) \#
+%%   Dollar        \$     Percent       \%     Ampersand     \&
+%%   Acute accent  \'     Left paren    \(     Right paren   \)
+%%   Asterisk      \*     Plus          \+     Comma         \,
+%%   Minus         \-     Point         \.     Solidus       \/
+%%   Colon         \:     Semicolon     \;     Less than     \<
+%%   Equals        \=     Greater than  \>     Question mark \?
+%%   Commercial at \@     Left bracket  \[     Backslash     \\
+%%   Right bracket \]     Circumflex    \^     Underscore    \_
+%%   Grave accent  \`     Left brace    \{     Vertical bar  \|
+%%   Right brace   \}     Tilde         \~}
+\NeedsTeXFormat{LaTeX2e}[1995/12/01]
+\ProvidesPackage{pdstitle}[2006/04/19 v1.2 PDS style file]
+\newif\if@pds@pdf
+\DeclareOption{pdf}{%
+    \def\@pds@path{$PDS_LATEX_BASE/}
+    \PassOptionsToPackage{pdftex}{graphicx}
+    \@pds@pdftrue
+}
+\ExecuteOptions{}
+\ProcessOptions\relax
+\RequirePackage{graphicx}
+
+%\setlength{\voffset}{0cm}%
+%\setlength{\pdfpagewidth}{8.26in}%
+%\setlength{\pdfpageheight}{11.69in}%
+\setlength{\topmargin}{0in}%
+\setlength{\headheight}{0in}%
+\setlength{\headsep}{0in}%
+\setlength{\textheight}{9in}%
+\setlength{\textwidth}{6.5in}%
+\setlength{\oddsidemargin}{0in}%
+\setlength{\evensidemargin}{0in}%
+\setlength{\headheight}{0pt}%
+\setlength{\headsep}{0.5in} %
+%\setlength{\footheight}{1.0in}
+%\setlength{\footskip}{1in}
+
+\renewcommand\maketitle{%
+  \begin{titlepage}%
+  \setcounter{page}{0}%
+  \null
+  \m@kepdspage
+  \null
+  \end{titlepage}%
+  \setcounter{page}{1}%
+  \setcounter{footnote}{0}%
+  \global\let\thanks\relax
+  \global\let\maketitle\relax
+  \global\let\@thanks\@empty
+  \global\let\@author\@empty
+  \global\let\@authortwo\@empty
+  \global\let\@authorone\@empty
+  \global\let\@date\@empty
+  \global\let\@title\@empty
+  \global\let\title\relax
+  \global\let\author\relax
+  \global\let\date\relax
+  \global\let\and\relax
+}
+\def\pdsnumber{\@ifnextchar[{\pds@repyear}{\gdef\pds@number}}
+\def\pds@repyear[#1]{%
+    \pdsyear{#1}%
+    \gdef\pds@number
+}
+\def\pds@email{email address}
+\def\pds@emailone{email address first author}
+\def\pds@emailtwo{email address second author}
+\def\pdsemail{\gdef\pds@email}
+\def\pdsemailone{\gdef\pds@emailone}
+\def\pdsemailtwo{\gdef\pds@emailtwo}
+\def\pdstitle{\gdef\pds@title}
+\def\pdsauthor{\gdef\pds@authors}
+\def\pdsauthorone{\gdef\pds@authorsone}
+\def\pdsauthortwo{\gdef\pds@authorstwo}
+\def\multiauthortwo{\gdef\pds@multiauthortwo}
+\def\pdsyear{\gdef\pds@year}
+\def\pds@issn{1387-2109}
+\def\pds@title{\@title}
+\def\pds@authors{\@author}
+\def\pds@authorsone{\@authorone}
+\def\pds@authorstwo{\@authortwo}
+\def\pds@year{\the\year}
+\def\pds@number{xxx}
+\def\m@kepdspage{
+    \thispagestyle{empty}
+    \makeatletter
+    \begin{center}
+    \vspace*{-3cm}%
+    \begin{figure}[htbp]
+      \begin{center}
+      \if@pds@pdf
+          %\hspace*{-2.3cm}\noindent %
+          \mbox{\includegraphics[width=\textwidth]{\@pds@path style/tud_header.jpg}} %
+      \else
+          %\hspace*{-2.3cm}\noindent %
+          \mbox{\includegraphics[width=\textwidth]{style/tud_header}} %
+      \fi
+      \end{center}
+    \end{figure}
+    \vspace*{1cm}%
+    \bfseries
+    \Large
+    Delft University of Technology \\
+    Parallel and Distributed Systems Report Series \\[2\baselineskip]
+    \LARGE
+    \vspace*{1cm}
+    \pds@title \\[\baselineskip]
+    \Large
+    \bgroup
+      \begin{tabular}[t]{c}%
+      \ifx\pds@multiauthortwo\undefined
+        %\typeout{Multi author2 not defined (1)}
+        %\errhelp{Multi author2 not defined (2)}
+        %\errmessage{Multi author2 not defined (3)}
+        \pds@authors\\
+        {\tt \large \pds@email}
+      \else
+        %\typeout{Multi author2 defined (1)}
+        %\errhelp{Multi author2 defined (2)}
+        %\errmessage{Multi author2 defined (3)}
+        \pds@authorsone\\
+        {\tt \large \pds@emailone}\\
+        \ \\
+        \pds@authorstwo\\
+        {\tt \large \pds@emailtwo}
+        \typeout{Multi author2 table printed successfully!}
+      \fi
+      \end{tabular}%
+      \\[2\baselineskip]
+    \egroup
+    Report number  PDS-\pds@year-\pds@number \\
+    \vspace*{2cm}
+    \vfill
+    \begin{figure}[htbp]
+      \begin{center}
+      \if@pds@pdf
+          \mbox{
+             \includegraphics[height=2cm]{\@pds@path style/logo.jpg}
+             \includegraphics[height=2cm]{\@pds@path style/pds_logo2.jpg}
+             }
+      \else
+          \mbox{
+             \includegraphics[height=1.5cm]{style/logo}
+	     \hspace{1cm}
+             \includegraphics[height=0.8cm]{style/pds_logo2}
+             }
+      \fi
+      \end{center}
+    \end{figure}
+    \vfill
+    \vspace*{0.5cm}
+    ISSN \pds@issn
+    %
+    %\vspace*{2cm}
+    \vfill
+    \begin{figure}[b!]
+      \begin{center}
+      \if@pds@pdf
+          %\hspace*{-2.3cm}\noindent %
+          \mbox{\includegraphics[width=\textwidth]{\@pds@path style/tud_footer.jpg}}
+      \else
+          %\hspace*{-2.3cm}\noindent %
+          \mbox{\includegraphics[width=\textwidth]{style/tud_footer}}
+      \fi
+      \end{center}
+    \end{figure}
+    %\vfill
+    %
+    \end{center}
+    \pagebreak
+    \thispagestyle{empty}
+    \noindent
+    Published and produced by: \\
+    Parallel and Distributed Systems Group \\
+    Department of Software and Computer Technology \\
+    Faculty Electrical Engineering, Mathematics, and Computer Science \\
+    Delft University of Technology \\
+    Mekelweg 4 \\
+    2628 CD  Delft \\
+    The Netherlands
+    \medskip\par\noindent
+    Information about Parallel and Distributed Systems Report Series: \\
+    \texttt{reports@pds.ewi.tudelft.nl}
+    \medskip\par\noindent
+    Information about Parallel and Distributed Systems Section: \\
+    \texttt{http://www.pds.ewi.tudelft.nl/}
+    \vfill
+    \noindent
+    \copyright\ \pds@year\ Parallel and Distributed Systems Group,
+    Department of Software and Computer Technology,
+    Faculty Electrical Engineering, Mathematics, and Computer Science,
+    Delft University of Technology.
+    All rights reserved.  No part of this series may be
+    reproduced in any form or by any means without prior written
+    permission of the publisher.
+    \makeatother
+}
+
+
+\endinput
+%%
+%% End of file `pdstitle.sty'.

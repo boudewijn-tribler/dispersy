@@ -1,0 +1,27 @@
+%-- SETUP REPORT PAGE LAYOUT -- start
+\pagestyle{fancy}%
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+\addtolength{\headheight}{\baselineskip}
+\renewcommand{\sectionmark}[1]{\markright{\thesection.\ #1}{}}
+\lhead{
+\noindent\colorbox{gray875}{\makebox[0.5\headwidth][l]{\authornameshort}\textcolor{gray875}{Wp}}\\
+\noindent\colorbox{gray925}{\makebox[0.5\headwidth][l]{\reporttitleshort\textcolor{gray925}{Wp}}}} %
+\chead{ \makebox[0.2\textwidth][l]{ \setlength{\unitlength}{1mm}
+\begin{picture}(0,0)
+\put(8,10){\includegraphics[width=0.08\headwidth]{style/pds_logo3}}\end{picture}}
+}%
+\rhead{
+\noindent\hspace*{-0.5\headwidth}\colorbox{gray875}{\makebox[0.5\headwidth][r]{\textcolor{gray875}{Wp}}}\\
+%\noindent\hspace*{-0.5\headwidth}\colorbox{gray875}{\makebox[0.5\headwidth][r]{\textcolor{gray875}{Wp}Ch.\thechapter.\ \leftmark}}\\
+\noindent\hspace*{-0.5\headwidth}\colorbox{gray925}{\makebox[0.5\headwidth][r]{\textcolor{gray925}{Wp}\nouppercase{\rightmark}}}}% %
+\lfoot{ %
+   \noindent\colorbox{gray925}{ %
+      \makebox[\textwidth][l]{ %
+        \textcolor{gray925}{Wp}\textcolor{blue}{\scriptsize \copyrighttext} %
+      } %
+   } %
+}%
+\cfoot{\thepage} %
+\rfoot{\tt \scriptsize \authorwebpage} %
+%-- SETUP REPORT PAGE LAYOUT -- end

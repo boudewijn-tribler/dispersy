@@ -1,0 +1,75 @@
+\documentclass[a4paper,10pt]{article}
+\usepackage{pdstitle}
+\usepackage{color}
+\usepackage{multicol}
+\usepackage{fancyhdr}
+\usepackage{graphicx}
+\usepackage{url}
+\usepackage{bigstrut}
+\usepackage{amsmath, amsfonts}
+\usepackage{textcomp}
+\usepackage{multirow}
+\usepackage{subfigure}
+\usepackage[vcentering]{geometry}
+%\geometry{total={170mm,220mm},left=4cm,right=4cm,top=5.5cm,bottom=3.5cm}
+
+\usepackage[unicode,pdfpagelabels,pagebackref,hypertexnames=true,plainpages=false,naturalnames]{hyperref}%
+\hypersetup{
+   pdfauthor = {TODO Author name},
+   pdftitle = {TODO Report title},
+   linktocpage = true, % make page number, not text, be link on TOC, LOF and LOT
+   colorlinks = true,
+   linkcolor = blue,
+   anchorcolor = blue,
+   citecolor = blue,
+   filecolor = blue,
+   urlcolor = blue
+   }
+
+\DeclareGraphicsExtensions{.pdf,.png,.jpg}
+
+\definecolor{RoyalBlue}{rgb}{0.001,0.75,0.85}
+\definecolor{gray875}{gray}{0.875}
+\definecolor{gray925}{gray}{0.925}
+
+\begin{document}
+
+%-- SETUP TITLE -- start
+\multiauthortwo{1}
+\vspace{0.5cm}
+\pdsauthorone{TODO Author1, Author2, \dots} % don't separate with \and
+\pdsemailone{TODO email}
+\pdsauthortwo{{\tt Completed TODO month year.}}
+\pdsemailtwo{\vspace*{-1cm}}
+\newcommand{\authornameshort}{TODO Author1 et al.}
+\newcommand{\reporttitle}{TODO Report title}
+\newcommand{\reporttitleshort}{TODO Short report title}
+\newcommand{\copyrighttext}{}
+\newcommand{\authorwebpage}{}
+\title{\reporttitle} %
+\pdsnumber[TODO year]{TODO number} %
+\maketitle %
+%-- SETUP TITLE -- end
+
+%-- SETUP REPORT PAGE LAYOUT -- start
+\include{page_layout}
+%-- SETUP REPORT PAGE LAYOUT -- end
+
+\begin{abstract}
+	Lorem ipsum
+\end{abstract}
+
+\newpage
+\tableofcontents
+\newpage
+\listoffigures
+\listoftables
+\newpage
+
+\section{TODO Section1}
+Lorem ipsum~\cite{zaharia2008improving}.
+
+\bibliographystyle{ieeetr}
+\bibliography{pds-technical-report-template}
+
+\end{document}
