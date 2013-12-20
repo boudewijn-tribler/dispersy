@@ -191,7 +191,7 @@ class SyncDistribution(Distribution):
         def members(self):
             return self._meta.members
 
-    def __init__(self, synchronization_direction, priority, pruning=NoPruning()):
+    def __init__(self, synchronization_direction, priority, pruning=NoPruning(), members_func=None):
         # note: messages with a high priority value are synced before those with a low priority
         # value.
         # note: the priority has precedence over the global_time based ordering.
@@ -201,11 +201,13 @@ class SyncDistribution(Distribution):
         assert isinstance(priority, int), type(priority)
         assert 0 <= priority <= 255, priority
         assert isinstance(pruning, Pruning), type(pruning)
+        assert members_func is None or callable(members_func), members_func
         self._synchronization_direction = synchronization_direction
         self._priority = priority
         self._current_sequence_number = 0
         self._pruning = pruning
-        self._members = set()
+        # self._members = set()
+        self._members_func = members_func
 
     @property
     def community(self):
@@ -227,12 +229,52 @@ class SyncDistribution(Distribution):
     def pruning(self):
         return self._pruning
 
-    @property
-    def members(self):
+    # @property
+    # def members(self):
+    #     if __debug__:
+    #         from .member import Member
+    #         assert all(isinstance(member, Member) for member in self._members), [type(member) for member in self._members]
+    #     return self._members
+
+    def get_members(self, candidate=None):
+        """
+        Returns the result of MEMBERS_FUN which must be a tuple/list/set with Member instances for
+        whom messages must be included in the sync.
+
+        When CANDIDATE is None we should return the list of Members that we want to disseminate
+        ourselves (this is called on an incoming introduction request, where we must select messages
+        to disseminate).
+
+        When CANDIDATE is given, we should return the list of Members that CANDIDATE wants to
+        disseminate (this is called when we create an introduction request, and we want to fill our
+        bloom filter with messages that we know CANDIDATE will want to send back).
+        """
+        return self._members_func(candidate) if self._members_func else []
+
+    def set_zero_hop_distribution(self):
+        """
+        Convenience function that sets a MEMBERS_FUNC which ensures zero hop dissemination.
+        """
+        self._members_func = self._zero_hop_distribution
+
+    def _zero_hop_distribution(self, candidate):
+        """
+        Returns a tuple/list/set with Member instances for whom messages must be included in the
+        sync.
+
+        Returns [Community.my_member] when CANDIDATE is None, otherwise the Members that are
+        associated with CANDIDATE.
+        """
         if __debug__:
-            from .member import Member
-            assert all(isinstance(member, Member) for member in self._members), [type(member) for member in self._members]
-        return self._members
+            from .candidate import WalkCandidate
+            assert candidate is None or isinstance(candidate, WalkCandidate), type(candidate)
+        if candidate:
+            # return the Member(s) associated with CANDIDATE
+            # TODO when we haven't met the CANDIDATE before, we won't know the associated Member
+            return candidate.get_members()
+
+        else:
+            return [self._community.my_member]
 
     def setup(self, message):
         """
@@ -288,9 +330,9 @@ class FullSyncDistribution(SyncDistribution):
         def sequence_number(self):
             return self._sequence_number
 
-    def __init__(self, synchronization_direction, priority, enable_sequence_number, pruning=NoPruning()):
+    def __init__(self, synchronization_direction, priority, enable_sequence_number, pruning=NoPruning(), members_func=None):
         assert isinstance(enable_sequence_number, bool)
-        super(FullSyncDistribution, self).__init__(synchronization_direction, priority, pruning)
+        super(FullSyncDistribution, self).__init__(synchronization_direction, priority, pruning, members_func)
         self._enable_sequence_number = enable_sequence_number
 
     @property
@@ -317,10 +359,10 @@ class LastSyncDistribution(SyncDistribution):
         def history_size(self):
             return self._meta._history_size
 
-    def __init__(self, synchronization_direction, priority, history_size, pruning=NoPruning()):
+    def __init__(self, synchronization_direction, priority, history_size, pruning=NoPruning(), members_func=None):
         assert isinstance(history_size, int), type(history_size)
         assert history_size > 0, history_size
-        super(LastSyncDistribution, self).__init__(synchronization_direction, priority, pruning)
+        super(LastSyncDistribution, self).__init__(synchronization_direction, priority, pruning, members_func)
         self._history_size = history_size
 
     @property

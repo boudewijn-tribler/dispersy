@@ -20,6 +20,7 @@ try:
 except ImportError:
     from .python27_ordereddict import OrderedDict
 
+from .authentication import DoubleMemberAuthentication
 from .bloomfilter import BloomFilter
 from .candidate import WalkCandidate, BootstrapCandidate
 from .conversion import BinaryConversion, DefaultConversion
@@ -652,7 +653,7 @@ class Community(object):
                 self._sync_cache = None
                 return None
 
-        sync = self.dispersy_sync_bloom_filter_strategy()
+        sync = self.dispersy_sync_bloom_filter_strategy(request_cache)
         if sync:
             self._sync_cache = SyncCache(*sync)
             self._sync_cache.candidate = request_cache.helper_candidate
@@ -664,7 +665,7 @@ class Community(object):
 
     @runtime_duration_warning(0.5)
     @attach_runtime_statistics(u"{0.__class__.__name__}.{function_name}")
-    def dispersy_claim_sync_bloom_filter_simple(self):
+    def dispersy_claim_sync_bloom_filter_simple(self, request_cache):
         bloom = BloomFilter(self.dispersy_sync_bloom_filter_bits, self.dispersy_sync_bloom_filter_error_rate, prefix=chr(int(random() * 256)))
         capacity = bloom.get_capacity(self.dispersy_sync_bloom_filter_error_rate)
         global_time = self.global_time
@@ -701,7 +702,7 @@ class Community(object):
     # choose a pivot, add all items capacity to the right. If too small, add items left of pivot
     @runtime_duration_warning(0.5)
     @attach_runtime_statistics(u"{0.__class__.__name__}.{function_name}")
-    def dispersy_claim_sync_bloom_filter_right(self):
+    def dispersy_claim_sync_bloom_filter_right(self, request_cache):
         bloom = BloomFilter(self.dispersy_sync_bloom_filter_bits, self.dispersy_sync_bloom_filter_error_rate, prefix=chr(int(random() * 256)))
         capacity = bloom.get_capacity(self.dispersy_sync_bloom_filter_error_rate)
 
@@ -755,7 +756,7 @@ class Community(object):
     # instead of pivot + capacity, divide capacity to have 50/50 division around pivot
     @runtime_duration_warning(0.5)
     @attach_runtime_statistics(u"{0.__class__.__name__}.{function_name}")
-    def dispersy_claim_sync_bloom_filter_50_50(self):
+    def dispersy_claim_sync_bloom_filter_50_50(self, request_cache):
         bloom = BloomFilter(self.dispersy_sync_bloom_filter_bits, self.dispersy_sync_bloom_filter_error_rate, prefix=chr(int(random() * 256)))
         capacity = bloom.get_capacity(self.dispersy_sync_bloom_filter_error_rate)
 
@@ -824,7 +825,7 @@ class Community(object):
     # instead of pivot + capacity, compare pivot - capacity and pivot + capacity to see which globaltime range is largest
     @runtime_duration_warning(0.5)
     @attach_runtime_statistics(u"{0.__class__.__name__}.{function_name}")
-    def _dispersy_claim_sync_bloom_filter_largest(self):
+    def _dispersy_claim_sync_bloom_filter_largest(self, request_cache):
         if __debug__:
             t1 = time()
 
@@ -902,26 +903,95 @@ class Community(object):
     # instead of pivot + capacity, compare pivot - capacity and pivot + capacity to see which globaltime range is largest
     @runtime_duration_warning(0.5)
     @attach_runtime_statistics(u"{0.__class__.__name__}.{function_name}")
-    def _dispersy_claim_sync_bloom_filter_modulo(self):
-        syncable_messages = u", ".join(unicode(meta.database_id) for meta in self._meta_messages.itervalues() if isinstance(meta.distribution, SyncDistribution) and meta.distribution.priority > 32)
-        if syncable_messages:
+    def _dispersy_claim_sync_bloom_filter_modulo(self, request_cache):
+        def get_count_sub_select(meta):
+            assert isinstance(meta.distribution, SyncDistribution), type(meta)
+
+            if meta.distribution.members:
+                if isinstance(meta.authentication, DoubleMemberAuthentication):
+                    return u"""
+     SELECT COUNT(*) as count FROM sync    -- """ + meta.name + """
+     JOIN double_signed_sync ON double_signed_sync.sync = sync.id
+     WHERE sync.meta_message = ? AND
+           sync.undone = 0 AND
+           (double_signed_sync.member1 IN (""" + ", ".join(str(member.database_id) for member in meta.distribution.members) + """) OR
+            double_signed_sync.member2 IN (""" + ", ".join(str(member.database_id) for member in meta.distribution.members) + """))"""
+
+                else:
+                    return u"""
+     SELECT COUNT(*) as count FROM sync    -- """ + meta.name + """
+     WHERE sync.meta_message = ? AND
+           sync.undone = 0 AND
+           sync.member IN (""" + ", ".join(str(member.database_id) for member in meta.distribution.members) + """)"""
+
+            else:
+                return u"""
+     SELECT COUNT(*) as count FROM sync    -- """ + meta.name + """
+     WHERE sync.meta_message = ? AND sync.undone = 0"""
+
+            raise RuntimeError("Unable to obtain sub-select statement for %s" % meta)
+
+        def get_packet_sub_select(meta):
+            assert isinstance(meta.distribution, SyncDistribution), type(meta)
+
+            if meta.distribution.members:
+                if isinstance(meta.authentication, DoubleMemberAuthentication):
+                    return u"""
+     SELECT sync.packet as packet FROM sync    -- """ + meta.name + """
+     JOIN double_signed_sync ON double_signed_sync.sync = sync.id
+     WHERE sync.meta_message = ? AND
+           sync.undone = 0 AND
+           (sync.global_time + ?) % ? = 0 AND
+           (double_signed_sync.member1 IN (""" + ", ".join(str(member.database_id) for member in meta.distribution.members) + """) OR
+            double_signed_sync.member2 IN (""" + ", ".join(str(member.database_id) for member in meta.distribution.members) + """))"""
+
+                else:
+                    return u"""
+     SELECT sync.packet as packet FROM sync    -- """ + meta.name + """
+     WHERE sync.meta_message = ? AND
+           sync.undone = 0 AND
+           (sync.global_time + ?) % ? = 0 AND
+           sync.member IN (""" + ", ".join(str(member.database_id) for member in meta.distribution.members) + """)"""
+
+            else:
+                return u"""
+     SELECT sync.packet as packet FROM sync    -- """ + meta.name + """
+     WHERE sync.meta_message = ? AND sync.undone = 0 AND (sync.global_time + ?) % ? = 0"""
+
+            raise RuntimeError("Unable to obtain sub-select statement for %s" % meta)
+
+        def get_count(metas):
+            " Returns the total number of messages that we can sync for this community "
+            sql = "".join((u"SELECT SUM(count) FROM (", " UNION ALL ".join(get_count_sub_select(meta) for meta in metas), ")"))
+            count, = self._dispersy.database.execute(sql, [meta.database_id for meta in metas]).next()
+            return count
+
+        def get_packets(metas, modulo, offset):
+            " Iterates all packets that we can sync for this community "
+            def get_bindings():
+                for meta in metas:
+                    yield meta.database_id
+                    yield offset
+                    yield modulo
+            sql = "".join((u"SELECT packet FROM (", " UNION ALL ".join(get_packet_sub_select(meta) for meta in metas), ")"))
+            return (str(packet) for packet, in self._dispersy.database.execute(sql, list(get_bindings())))
+
+
+        metas = [meta
+                 for meta
+                 in self._meta_messages.itervalues()
+                 if isinstance(meta.distribution, SyncDistribution) and meta.distribution.priority > 32]
+
+        if metas:
             bloom = BloomFilter(self.dispersy_sync_bloom_filter_bits, self.dispersy_sync_bloom_filter_error_rate, prefix=chr(int(random() * 256)))
             capacity = bloom.get_capacity(self.dispersy_sync_bloom_filter_error_rate)
+            self._nrsyncpackets = count = get_count(metas)
+            modulo = int(ceil(count / float(capacity)))
+            offset = 0 if modulo == 1 else randint(0, modulo - 1)
+            bloom.add_keys(get_packets(metas, modulo, offset))
 
-            self._nrsyncpackets = list(self._dispersy.database.execute(u"SELECT count(*) FROM sync WHERE meta_message IN (%s) AND undone = 0 LIMIT 1" % (syncable_messages)))[0][0]
-            modulo = int(ceil(self._nrsyncpackets / float(capacity)))
-            if modulo > 1:
-                offset = randint(0, modulo - 1)
-                packets = list(str(packet) for packet, in self._dispersy.database.execute(u"SELECT sync.packet FROM sync WHERE meta_message IN (%s) AND sync.undone = 0 AND (sync.global_time + ?) %% ? = 0" % syncable_messages, (offset, modulo)))
-            else:
-                offset = 0
-                modulo = 1
-                packets = list(str(packet) for packet, in self._dispersy.database.execute(u"SELECT sync.packet FROM sync WHERE meta_message IN (%s) AND sync.undone = 0" % syncable_messages))
-
-            bloom.add_keys(packets)
-
-            logger.debug("%s syncing %d-%d, nr_packets = %d, capacity = %d, totalnr = %d",
-                         self.cid.encode("HEX"), modulo, offset, self._nrsyncpackets, capacity, self._nrsyncpackets)
+            logger.debug("%s syncing %d-%d, capacity = %d, totalnr = %d",
+                         self.cid.encode("HEX"), modulo, offset, capacity, count)
 
             return (1, self.acceptable_global_time, modulo, offset, bloom)
 

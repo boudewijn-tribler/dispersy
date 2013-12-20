@@ -529,14 +529,14 @@ class TestSync(DispersyTestFunc):
             node.drop_packets()
 
     @call_on_dispersy_thread
-    def test_member_full_sync(self):
+    def test_A_memberauthentication_zerohop_fullsync(self):
         """
         SELF, NODE1, and NODE2 create messages and store them at SELF, SELF should only respond with
-        messages created by members in its meta_message.distribution.members set.
+        messages created by itself (i.e. zero hop).
         """
         community = DebugCommunity.create_community(self._dispersy, self._my_member)
         meta = community.get_meta_message(u"member-full-sync-text")
-        meta.distribution.members.add(community.my_member)
+        meta.distribution.set_zero_hop_distribution()
 
         # create node and ensure that SELF knows the node address
         node1 = DebugNode(community)
@@ -575,37 +575,27 @@ class TestSync(DispersyTestFunc):
         self.assertItemsEqual([message.packet for _, message in node1.receive_messages(names=[meta.name])],
                               [message.packet for message in self_messages])
 
-        # add NODE1 to the message.distribution.members.  SELF must now distribute node1_messages
-        # and self_messages
-        meta.distribution.members.add(node1.my_member)
-        # send an empty sync message
-        node1.drop_packets()
-        node1.give_message(node1.create_dispersy_introduction_request(community.my_candidate, node1.lan_address, node1.wan_address, False, u"unknown", (min(global_times), 0, 1, 0, []), 42, max(global_times)))
-        yield 0.1
-        # SELF must have returned all messages it created itself
-        self.assertItemsEqual([message.packet for _, message in node1.receive_messages(names=[meta.name])],
-                              [message.packet for message in node1_messages + self_messages])
+        # should timeout
+        wait = 5
+        for counter in range(wait):
+            logger.debug("waiting... %d", wait - counter)
+            yield 1.0
+        yield 0.11
 
-
-        # empty the members.distribution.members set.  SELF must now distribution -all- messages
-        meta.distribution.members.clear()
-        # send an empty sync message
-        node1.drop_packets()
-        node1.give_message(node1.create_dispersy_introduction_request(community.my_candidate, node1.lan_address, node1.wan_address, False, u"unknown", (min(global_times), 0, 1, 0, []), 42, max(global_times)))
-        yield 0.1
-        # SELF must have returned all messages it created itself
-        self.assertItemsEqual([message.packet for _, message in node1.receive_messages(names=[meta.name])],
-                              [message.packet for message in node1_messages + node2_messages + self_messages])
+        # SELF will create an introduction request to one of the NODES
+        _, request = node1.receive_message(names=[u"dispersy-introduction-request"])
+        _, request = node2.receive_message(names=[u"dispersy-introduction-request"])
 
     @call_on_dispersy_thread
-    def test_double_member_full_sync(self):
+    def test_A_doublememberauthentication_zerohop_fullsync(self):
         """
-        SELF, NODE1, and NODE2 create messages and store them at SELF, SELF should only respond with
-        messages created by members in its meta_message.distribution.members set.
+        SELF, NODE1, and NODE2 create double signed messages with each other (i.e. SELF+NODE1,
+        SELF+NODE2, and NODE1+NODE2) and store them at SELF, SELF should only respond with messages
+        where she participated (i.e. SELF+NODE1 and SELF+NODE2).
         """
         community = DebugCommunity.create_community(self._dispersy, self._my_member)
         meta = community.get_meta_message(u"double-member-full-sync-text")
-        meta.distribution.members.add(community.my_member)
+        meta.distribution.set_zero_hop_distribution()
 
         # create node and ensure that SELF knows the node address
         node1 = DebugNode(community)
@@ -614,19 +604,28 @@ class TestSync(DispersyTestFunc):
         node2 = DebugNode(community)
         node2.init_socket()
         node2.init_my_member()
-        node3 = DebugNode(community)
-        node3.init_socket()
-        node3.init_my_member()
 
         # should be no messages from NODE yet
         self.assertEqual(community.fetch_messages(meta.name), [])
 
-        # NODES creates messages
+        # NODES creates messages with each other
         global_times = range(10, 15)
+        node12_messages = node1.give_messages([node1.create_double_member_full_sync_text("Node1+Node2 @%d; Allow=True" % i, node2.my_member, i, sign=True) for i in global_times])
+        self.assertItemsEqual(community.fetch_packets(meta.name),
+                              [message.packet for message in node12_messages])
+        # send an empty sync message
+        node1.drop_packets()
+        node1.give_message(node1.create_dispersy_introduction_request(community.my_candidate, node1.lan_address, node1.wan_address, False, u"unknown", (min(global_times), 0, 1, 0, []), 42, max(global_times)))
+        yield 0.1
+        # SELF must return no messages at all (since it should only return messages created by SELF)
+        self.assertItemsEqual([message.packet for _, message in node1.receive_messages(names=[meta.name])],
+                              [])
+        # NODES creates messages with SELF
+        global_times = range(20, 25)
         node1_messages = node1.give_messages([node1.create_double_member_full_sync_text("Node1+self message @%d; Allow=True" % i, community.my_member, i, sign=True) for i in global_times])
         node2_messages = node2.give_messages([node2.create_double_member_full_sync_text("Node2+self message @%d; Allow=True" % i, community.my_member, i, sign=True) for i in global_times])
         self.assertItemsEqual(community.fetch_packets(meta.name),
-                              [message.packet for message in node1_messages + node2_messages])
+                              [message.packet for message in node12_messages + node1_messages + node2_messages])
 
         # send an empty sync message
         node1.drop_packets()
@@ -636,25 +635,133 @@ class TestSync(DispersyTestFunc):
         self.assertItemsEqual([message.packet for _, message in node1.receive_messages(names=[meta.name])],
                               [message.packet for message in node1_messages + node2_messages])
 
-        # remove SELF from, and add NODE1 to, the message.distribution.members.  SELF must now
-        # distribute node1_messages
-        meta.distribution.members.clear()
-        meta.distribution.members.add(node1.my_member)
-        # send an empty sync message
-        node1.drop_packets()
-        node1.give_message(node1.create_dispersy_introduction_request(community.my_candidate, node1.lan_address, node1.wan_address, False, u"unknown", (min(global_times), 0, 1, 0, []), 42, max(global_times)))
-        yield 0.1
-        # SELF must have returned all messages it created itself
-        self.assertItemsEqual([message.packet for _, message in node1.receive_messages(names=[meta.name])],
-                              [message.packet for message in node1_messages])
+    # @call_on_dispersy_thread
+    # def test__full_sync(self):
+    #     """
+    #     SELF, NODE1, and NODE2 create messages and store them at SELF, SELF should only respond with
+    #     messages created by members in its meta_message.distribution.members set.
+    #     """
+    #     community = DebugCommunity.create_community(self._dispersy, self._my_member)
+    #     meta = community.get_meta_message(u"member-full-sync-text")
+    #     meta.distribution.members.add(community.my_member)
+
+    #     # create node and ensure that SELF knows the node address
+    #     node1 = DebugNode(community)
+    #     node1.init_socket()
+    #     node1.init_my_member()
+    #     node2 = DebugNode(community)
+    #     node2.init_socket()
+    #     node2.init_my_member()
+
+    #     # should be no messages from NODE yet
+    #     self.assertEqual(community.fetch_messages(meta.name), [])
+
+    #     # NODES creates messages
+    #     global_times = range(10, 15)
+    #     node1_messages = node1.give_messages([node1.create_member_full_sync_text("Node1 message @%d" % i, i) for i in global_times])
+    #     node2_messages = node2.give_messages([node2.create_member_full_sync_text("Node2 message @%d" % i, i) for i in global_times])
+    #     self.assertItemsEqual(community.fetch_packets(meta.name),
+    #                           [message.packet for message in node1_messages + node2_messages])
+    #     # send an empty sync message
+    #     node1.drop_packets()
+    #     node1.give_message(node1.create_dispersy_introduction_request(community.my_candidate, node1.lan_address, node1.wan_address, False, u"unknown", (min(global_times), 0, 1, 0, []), 42, max(global_times)))
+    #     yield 0.1
+    #     # SELF must return no messages at all (since it should only return messages created by SELF)
+    #     self.assertItemsEqual([message.packet for _, message in node1.receive_messages(names=[meta.name])],
+    #                           [])
+
+    #     # SELF creates messages
+    #     self_messages = [community.create_member_full_sync_text("Self message #%d" % i) for i in global_times]
+    #     self.assertItemsEqual(community.fetch_packets(meta.name),
+    #                           [message.packet for message in node1_messages + node2_messages + self_messages])
+    #     # send an empty sync message
+    #     node1.drop_packets()
+    #     node1.give_message(node1.create_dispersy_introduction_request(community.my_candidate, node1.lan_address, node1.wan_address, False, u"unknown", (min(global_times), 0, 1, 0, []), 42, max(global_times)))
+    #     yield 0.1
+    #     # SELF must have returned all messages it created itself
+    #     self.assertItemsEqual([message.packet for _, message in node1.receive_messages(names=[meta.name])],
+    #                           [message.packet for message in self_messages])
+
+    #     # add NODE1 to the message.distribution.members.  SELF must now distribute node1_messages
+    #     # and self_messages
+    #     meta.distribution.members.add(node1.my_member)
+    #     # send an empty sync message
+    #     node1.drop_packets()
+    #     node1.give_message(node1.create_dispersy_introduction_request(community.my_candidate, node1.lan_address, node1.wan_address, False, u"unknown", (min(global_times), 0, 1, 0, []), 42, max(global_times)))
+    #     yield 0.1
+    #     # SELF must have returned all messages it created itself
+    #     self.assertItemsEqual([message.packet for _, message in node1.receive_messages(names=[meta.name])],
+    #                           [message.packet for message in node1_messages + self_messages])
 
 
-        # empty the members.distribution.members set.  SELF must now distribution -all- messages
-        meta.distribution.members.clear()
-        # send an empty sync message
-        node1.drop_packets()
-        node1.give_message(node1.create_dispersy_introduction_request(community.my_candidate, node1.lan_address, node1.wan_address, False, u"unknown", (min(global_times), 0, 1, 0, []), 42, max(global_times)))
-        yield 0.1
-        # SELF must have returned all messages it created itself
-        self.assertItemsEqual([message.packet for _, message in node1.receive_messages(names=[meta.name])],
-                              [message.packet for message in node1_messages + node2_messages])
+    #     # empty the members.distribution.members set.  SELF must now distribution -all- messages
+    #     meta.distribution.members.clear()
+    #     # send an empty sync message
+    #     node1.drop_packets()
+    #     node1.give_message(node1.create_dispersy_introduction_request(community.my_candidate, node1.lan_address, node1.wan_address, False, u"unknown", (min(global_times), 0, 1, 0, []), 42, max(global_times)))
+    #     yield 0.1
+    #     # SELF must have returned all messages it created itself
+    #     self.assertItemsEqual([message.packet for _, message in node1.receive_messages(names=[meta.name])],
+    #                           [message.packet for message in node1_messages + node2_messages + self_messages])
+
+    # @call_on_dispersy_thread
+    # def test_double_member_full_sync(self):
+    #     """
+    #     SELF, NODE1, and NODE2 create messages and store them at SELF, SELF should only respond with
+    #     messages created by members in its meta_message.distribution.members set.
+    #     """
+    #     community = DebugCommunity.create_community(self._dispersy, self._my_member)
+    #     meta = community.get_meta_message(u"double-member-full-sync-text")
+    #     meta.distribution.members.add(community.my_member)
+
+    #     # create node and ensure that SELF knows the node address
+    #     node1 = DebugNode(community)
+    #     node1.init_socket()
+    #     node1.init_my_member()
+    #     node2 = DebugNode(community)
+    #     node2.init_socket()
+    #     node2.init_my_member()
+    #     node3 = DebugNode(community)
+    #     node3.init_socket()
+    #     node3.init_my_member()
+
+    #     # should be no messages from NODE yet
+    #     self.assertEqual(community.fetch_messages(meta.name), [])
+
+    #     # NODES creates messages
+    #     global_times = range(10, 15)
+    #     node1_messages = node1.give_messages([node1.create_double_member_full_sync_text("Node1+self message @%d; Allow=True" % i, community.my_member, i, sign=True) for i in global_times])
+    #     node2_messages = node2.give_messages([node2.create_double_member_full_sync_text("Node2+self message @%d; Allow=True" % i, community.my_member, i, sign=True) for i in global_times])
+    #     self.assertItemsEqual(community.fetch_packets(meta.name),
+    #                           [message.packet for message in node1_messages + node2_messages])
+
+    #     # send an empty sync message
+    #     node1.drop_packets()
+    #     node1.give_message(node1.create_dispersy_introduction_request(community.my_candidate, node1.lan_address, node1.wan_address, False, u"unknown", (min(global_times), 0, 1, 0, []), 42, max(global_times)))
+    #     yield 0.1
+    #     # SELF must have returned all messages where it added a signature
+    #     self.assertItemsEqual([message.packet for _, message in node1.receive_messages(names=[meta.name])],
+    #                           [message.packet for message in node1_messages + node2_messages])
+
+    #     # remove SELF from, and add NODE1 to, the message.distribution.members.  SELF must now
+    #     # distribute node1_messages
+    #     meta.distribution.members.clear()
+    #     meta.distribution.members.add(node1.my_member)
+    #     # send an empty sync message
+    #     node1.drop_packets()
+    #     node1.give_message(node1.create_dispersy_introduction_request(community.my_candidate, node1.lan_address, node1.wan_address, False, u"unknown", (min(global_times), 0, 1, 0, []), 42, max(global_times)))
+    #     yield 0.1
+    #     # SELF must have returned all messages it created itself
+    #     self.assertItemsEqual([message.packet for _, message in node1.receive_messages(names=[meta.name])],
+    #                           [message.packet for message in node1_messages])
+
+
+    #     # empty the members.distribution.members set.  SELF must now distribution -all- messages
+    #     meta.distribution.members.clear()
+    #     # send an empty sync message
+    #     node1.drop_packets()
+    #     node1.give_message(node1.create_dispersy_introduction_request(community.my_candidate, node1.lan_address, node1.wan_address, False, u"unknown", (min(global_times), 0, 1, 0, []), 42, max(global_times)))
+    #     yield 0.1
+    #     # SELF must have returned all messages it created itself
+    #     self.assertItemsEqual([message.packet for _, message in node1.receive_messages(names=[meta.name])],
+    #                           [message.packet for message in node1_messages + node2_messages])

@@ -2387,7 +2387,10 @@ ORDER BY global_time""", (meta.database_id, member_database_id)))
 
                     # verify that the bloom filter is correct
                     try:
-                        _, packets = self._get_packets_for_bloomfilters(community, [[None, time_low, community.global_time if time_high == 0 else time_high, offset, modulo]], include_inactive=True).next()
+                        # _, packets = self._get_packets_for_bloomfilters(community, [[None, time_low, community.global_time if time_high == 0 else time_high, offset, modulo]], include_inactive=True).next()
+                        _, packets = self._get_packets_for_bloomfilters(community,
+                                                                        [(None, time_low, community.global_time if time_high == 0 else time_high, offset, modulo)],
+                                                                        destination_candidate=destination).next()
                         packets = [packet for packet, in packets]
 
                     except OverflowError:
@@ -2558,7 +2561,7 @@ ORDER BY global_time""", (meta.database_id, member_database_id)))
                 messages_with_sync.append((message, time_low, time_high, offset, modulo))
 
         if messages_with_sync:
-            for message, generator in self._get_packets_for_bloomfilters(community, messages_with_sync, include_inactive=False):
+            for message, generator in self._get_packets_for_bloomfilters(community, messages_with_sync): #, include_inactive=False):
                 # we limit the response by byte_limit bytes
                 byte_limit = community.dispersy_sync_response_limit
 
@@ -2575,7 +2578,8 @@ ORDER BY global_time""", (meta.database_id, member_database_id)))
                     self._statistics.dict_inc(self._statistics.outgoing, u"-sync-", len(packets))
                     self._endpoint.send([message.candidate], packets)
 
-    def _get_packets_for_bloomfilters(self, community, requests, include_inactive=True):
+    # include_inactive=True,
+    def _get_packets_for_bloomfilters(self, community, requests, destination_candidate=None):
         """
         Return all packets matching a Bloomfilter request
 
@@ -2586,20 +2590,27 @@ ORDER BY global_time""", (meta.database_id, member_database_id)))
          time_low, time_high, offset, and modulo
         @type requests: list
 
-        @param include_inactive: When False only active packets (due to pruning) are returned
-        @type include_inactive: bool
+        # @param include_inactive: When False only active packets (due to pruning) are returned
+        # @type include_inactive: bool
 
-        @return: An generator yielding the original request and a generator consisting of the packets matching the request
+        @param destination_candidate: When we are creating an outgoing bloom filter this must be the
+         destination Candidate, otherwise it must be None
+        @type destination_candidate: None or WalkCandidate
+
+        @return: An generator yielding the original request and a generator consisting of the
+         packets matching the request
         """
-        assert isinstance(requests, list)
-        assert all(isinstance(request, (list, tuple)) for request in requests)
-        assert all(len(request) == 5 for request in requests)
+        assert isinstance(requests, list), type(requests)
+        assert all(isinstance(request, (list, tuple)) for request in requests), [type(request) for request in requests]
+        assert all(len(request) == 5 for request in requests), len(requests)
+        assert destination_candidate is None or isinstance(destination_candidate, WalkCandidate), type(destination_candidate)
 
         def get_sub_select(meta):
             assert isinstance(meta.distribution, SyncDistribution), type(meta)
             order_by = {u"ASC":"sync.global_time ASC", u"DESC":"sync.global_time DESC", u"RANDOM":"RANDOM()"}
 
-            if meta.distribution.members:
+            members = meta.distribution.get_members(destination_candidate)
+            if members:
                 if isinstance(meta.authentication, DoubleMemberAuthentication):
                     return u"""
      SELECT * FROM
@@ -2608,8 +2619,8 @@ ORDER BY global_time""", (meta.database_id, member_database_id)))
        WHERE sync.meta_message = ? AND
              sync.undone = 0 AND
              sync.global_time BETWEEN ? AND ? AND (sync.global_time + ?) % ? = 0 AND
-             (double_signed_sync.member1 IN (""" + ", ".join(str(member.database_id) for member in meta.distribution.members) + """) OR
-              double_signed_sync.member2 IN (""" + ", ".join(str(member.database_id) for member in meta.distribution.members) + """))
+             (double_signed_sync.member1 IN (""" + ", ".join(str(member.database_id) for member in members) + """) OR
+              double_signed_sync.member2 IN (""" + ", ".join(str(member.database_id) for member in members) + """))
        ORDER BY """ + order_by[meta.distribution.synchronization_direction] + """)"""
 
                 else:
@@ -2619,7 +2630,7 @@ ORDER BY global_time""", (meta.database_id, member_database_id)))
        WHERE sync.meta_message = ? AND
              sync.undone = 0 AND
              sync.global_time BETWEEN ? AND ? AND (sync.global_time + ?) % ? = 0 AND
-             sync.member IN (""" + ", ".join(str(member.database_id) for member in meta.distribution.members) + """)
+             sync.member IN (""" + ", ".join(str(member.database_id) for member in members) + """)
        ORDER BY """ + order_by[meta.distribution.synchronization_direction] + """)"""
 
             else:
@@ -2646,9 +2657,13 @@ ORDER BY global_time""", (meta.database_id, member_database_id)))
         for message, time_low, time_high, offset, modulo in requests:
             sql_arguments = []
             for meta in meta_messages:
-                if include_inactive:
+                # if include_inactive:
+                if destination_candidate:
+                    # we are creating an outgoing bloom filter, we should include inactive messages
                     _time_low = time_low
                 else:
+                    # we are checking an incoming bloom filter, we should -not- include inactive
+                    # messages
                     _time_low = min(max(time_low, community.global_time - meta.distribution.pruning.inactive_threshold + 1), 2 ** 63 - 1) if isinstance(meta.distribution.pruning, GlobalTimePruning) else time_low
 
                 sql_arguments.extend((meta.database_id, _time_low, time_high, offset, modulo))
